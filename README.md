@@ -6,9 +6,9 @@
   <b>Your phone's new bodyguard.</b> Set a daily limit for TikTok, Instagram, YouTube and other apps, and when you go over, Mole closes them for the rest of the day. It's my own app against doomscrolling, and trying it is the best way to support these videos.
 </p>
 <p align="center">
-  <a href="https://controlmole.app/play"><img src="assets/google-play.png" height="48" alt="Get it on Google Play"></a>
+  <a href="https://controlmole.app/play"><img src="assets/google-play.png" height="44" alt="Get it on Google Play"></a>
   &nbsp;
-  <a href="https://controlmole.app/appstore"><img src="assets/app-store.svg" height="48" alt="Download on the App Store"></a>
+  <a href="https://controlmole.app/appstore"><img src="assets/app-store.svg" height="44" alt="Download on the App Store"></a>
 </p>
 
 ---
