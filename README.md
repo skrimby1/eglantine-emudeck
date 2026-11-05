@@ -3,7 +3,7 @@
 </p>
 <h2 align="center">ControlMole</h2>
 <p align="center">
-  <b>Your phone's new bodyguard.</b> Set a daily limit for TikTok, Instagram, YouTube and other apps, and when you go over, Mole closes them for the rest of the day. It's my own app against doomscrolling, and trying it is the best way to support these videos.
+  PROMOTION: Set a daily limit for TikTok, Instagram, YouTube and other apps, and when you go over, Mole closes them for the rest of the day. It's my own app against doomscrolling, and trying it is the best way to support these videos.
 </p>
 <p align="center">
   <a href="https://controlmole.app/play"><img src="assets/google-play-badge.png" height="40" alt="Get it on Google Play"></a>
