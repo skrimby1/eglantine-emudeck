@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# Puts Switch 2 games into EmuDeck on a Steam Deck: the Steam Deck version of Eglantine, PokeDinner
-# for Pokopia, a roms/switch2 folder, a "Nintendo Switch 2" system in EmulationStation (ES-DE) and
-# a parser in Steam ROM Manager.
+# Puts Switch 2 games into EmuDeck on a Steam Deck or a Steam Machine: Eglantine, PokeDinner for
+# Pokopia, a roms/switch2 folder, a "Nintendo Switch 2" system in EmulationStation (ES-DE) and a
+# parser in Steam ROM Manager. The Deck gets the Steam Deck version of Eglantine and anything with
+# graphics memory of its own gets the regular one; EGLANTINE_BUILD=deck or regular overrides that.
 #
 # EmuDeck has no Switch 2 option of its own yet, and resetting ES-DE or Steam ROM Manager in EmuDeck
 # puts its own files back. Run this again after a reset, and to update the emulator: it's safe to
@@ -9,6 +10,7 @@
 set -euo pipefail
 
 fork_repo="MFS-code/Eglantine-steamdeck"
+regular_repo="Djihads80/Eglantine"
 pokedinner_url="https://git.eden-emu.dev/Franseven/PokeDinner-a-Eglantine-Fork/releases/download/2.0.0/Eglantine-PokeDinner-2.0.0-linux-x86_64.AppImage"
 parser_id="176250000000000002"
 
@@ -20,8 +22,8 @@ srm_parsers="$HOME/.config/steam-rom-manager/userData/userConfigurations.json"
 say() { printf '\n== %s\n' "$*"; }
 die() { printf '\nStopped: %s\n' "$*" >&2; exit 1; }
 
-[ -f "$emudeck_settings" ] || die "EmuDeck isn't set up on this Deck yet, so run it once first."
-command -v python3 >/dev/null || die "python3 is missing, and SteamOS comes with it, so this doesn't look like a Steam Deck."
+[ -f "$emudeck_settings" ] || die "EmuDeck isn't set up here yet, so run it once first."
+command -v python3 >/dev/null || die "python3 is missing, and SteamOS comes with it, so this doesn't look like SteamOS."
 [ -f "$srm_parsers" ] || die "Steam ROM Manager has no settings yet. Run EmuDeck once first."
 if pgrep -i "steam-rom-manag" >/dev/null; then
     die "Steam ROM Manager is open. Close it, then run this again."
@@ -34,20 +36,62 @@ set -u
 roms="${romsPath:-$HOME/Emulation/roms}"
 
 # ---- the emulators
-say "Downloading the Steam Deck version of Eglantine"
+# The Deck's 16 GB is shared with its graphics, which the Steam Deck version is built around. A Steam
+# Machine has 8 GB of its own, and the regular Eglantine is the one its owners report running.
+build="${EGLANTINE_BUILD:-regular}"
+if [ -z "${EGLANTINE_BUILD:-}" ]; then
+    vram=0
+    for f in /sys/class/drm/card*/device/mem_info_vram_total; do
+        [ -r "$f" ] || continue
+        v="$(cat "$f")"
+        [ "$v" -gt "$vram" ] && vram="$v"
+    done
+    if [ "$vram" -gt 0 ] && [ "$vram" -lt $((6 * 1024 * 1024 * 1024)) ]; then build=deck; fi
+fi
+
 mkdir -p "$app"
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
-curl -fsSL "https://api.github.com/repos/$fork_repo/releases/latest" -o "$tmp/release.json"
-asset_url() { python3 -c 'import json,sys; print(next((u for u in (a["browser_download_url"] for a in json.load(open(sys.argv[1]))["assets"]) if u.endswith(sys.argv[2])), ""))' "$tmp/release.json" "$1"; }
-appimage_url="$(asset_url .AppImage)"
-kit_url="$(asset_url -kit.tar.gz)"
-[ -n "$appimage_url" ] && [ -n "$kit_url" ] || die "the newest release has no AppImage or no kit, check https://github.com/$fork_repo/releases"
-curl -fL --progress-bar "$appimage_url" -o "$tmp/$(basename "$appimage_url")"
-curl -fsSL "$kit_url" -o "$tmp/kit.tar.gz"
-rm -f "$app"/eglantine-steamdeck-*.AppImage
-mv "$tmp"/eglantine-steamdeck-*.AppImage "$app/"
-tar -xzf "$tmp/kit.tar.gz" -C "$app"
+if [ "$build" = deck ]; then
+    say "Downloading the Steam Deck version of Eglantine"
+    curl -fsSL "https://api.github.com/repos/$fork_repo/releases/latest" -o "$tmp/release.json"
+    asset_url() { python3 -c 'import json,sys; print(next((u for u in (a["browser_download_url"] for a in json.load(open(sys.argv[1]))["assets"]) if u.endswith(sys.argv[2])), ""))' "$tmp/release.json" "$1"; }
+    appimage_url="$(asset_url .AppImage)"
+    kit_url="$(asset_url -kit.tar.gz)"
+    [ -n "$appimage_url" ] && [ -n "$kit_url" ] || die "the newest release has no AppImage or no kit, check https://github.com/$fork_repo/releases"
+    curl -fL --progress-bar "$appimage_url" -o "$tmp/$(basename "$appimage_url")"
+    curl -fsSL "$kit_url" -o "$tmp/kit.tar.gz"
+    rm -f "$app"/eglantine-steamdeck-*.AppImage "$app"/eglantine-linux-*.AppImage
+    mv "$tmp"/eglantine-steamdeck-*.AppImage "$app/"
+    tar -xzf "$tmp/kit.tar.gz" -C "$app"
+else
+    say "Downloading Eglantine"
+    # The newest numbered release: the daily and hourly builds next to it change too often to trust.
+    curl -fsSL "https://api.github.com/repos/$regular_repo/releases?per_page=40" -o "$tmp/release.json"
+    appimage_url="$(python3 -c 'import json,sys; print(next((a["browser_download_url"] for r in json.load(open(sys.argv[1])) if r["tag_name"].startswith("v") for a in r["assets"] if a["name"] == "eglantine-linux-x86_64-pgo.AppImage"), ""))' "$tmp/release.json")"
+    [ -n "$appimage_url" ] || die "no numbered release has a Linux AppImage, check https://github.com/$regular_repo/releases"
+    curl -fL --progress-bar "$appimage_url" -o "$tmp/$(basename "$appimage_url")"
+    rm -f "$app"/eglantine-steamdeck-*.AppImage "$app"/eglantine-linux-*.AppImage "$app/eglantine-deck.sh"
+    mv "$tmp"/eglantine-linux-*.AppImage "$app/"
+    mkdir -p "$app/eglantine-config/eden"
+    if [ ! -f "$app/eglantine-config/eden/qt-config.ini" ]; then
+        cat > "$app/eglantine-config/eden/qt-config.ini" <<'REGULAR'
+[UI]
+calloutFlags\default=false
+calloutFlags=2
+
+[Core]
+memory_layout_mode\default=false
+memory_layout_mode=4
+
+[Renderer]
+astc_recompression\default=false
+astc_recompression=2
+use_asynchronous_shaders\default=false
+use_asynchronous_shaders=true
+REGULAR
+    fi
+fi
 
 if ! ls "$app"/Eglantine-PokeDinner-*.AppImage >/dev/null 2>&1; then
     say "Downloading PokeDinner 2.0.0 for Pokopia"
@@ -55,8 +99,8 @@ if ! ls "$app"/Eglantine-PokeDinner-*.AppImage >/dev/null 2>&1; then
     mv "$tmp"/Eglantine-PokeDinner-*.AppImage "$app/"
 fi
 
-# Pokopia hangs on "Launching" for many on the defaults, Docked and a 4GB memory layout, and the
-# first start stops on an "Outdated Game Format" message that's easy to miss in Gaming Mode.
+# Pokopia hangs on "Launching" for many on the defaults, Docked (on a Deck) and a 4GB memory layout,
+# and the first start stops on an "Outdated Game Format" message that's easy to miss in Gaming Mode.
 mkdir -p "$app/pokedinner-config/eden"
 if [ ! -f "$app/pokedinner-config/eden/qt-config.ini" ]; then
     cat > "$app/pokedinner-config/eden/qt-config.ini" <<'POKEDINNER'
@@ -68,10 +112,10 @@ calloutFlags=2
 memory_layout_mode\default=false
 memory_layout_mode=4
 
-[System]
-use_docked_mode\default=false
-use_docked_mode=0
 POKEDINNER
+    if [ "$build" = deck ]; then
+        printf '\n[System]\nuse_docked_mode\\default=false\nuse_docked_mode=0\n' >> "$app/pokedinner-config/eden/qt-config.ini"
+    fi
 fi
 
 # ---- the launcher Steam and EmulationStation both start. It lives here and not in EmuDeck's
@@ -95,32 +139,46 @@ esac
 [ -f "$main" ] || { echo "There's no exefs/main in $game, so it isn't a loose dump."; exit 1; }
 title="$(basename "$(dirname "$(dirname "$main")")")"
 
+# A loose dump opens thousands of files at once, and the default limit of 1024 ends the game.
+ulimit -n "$(ulimit -Hn)" 2>/dev/null
+pokedinner="$(ls -t "$here"/Eglantine-PokeDinner-*.AppImage 2>/dev/null | head -1)"
+regular="$(ls -t "$here"/eglantine-linux-*.AppImage 2>/dev/null | head -1)"
+
 case "${title,,}" in
 *pokopia*)
-    # A loose dump opens thousands of files at once, and the default limit of 1024 ends the game.
-    ulimit -n "$(ulimit -Hn)" 2>/dev/null
-    pokedinner="$(ls -t "$here"/Eglantine-PokeDinner-*.AppImage 2>/dev/null | head -1)"
-    [ -n "$pokedinner" ] || { echo "PokeDinner is missing, run the installer again."; exit 1; }
-    chmod +x "$pokedinner"
-    # Its own settings (Handheld, 12GB memory layout), so they don't change EmuDeck's regular Eden,
-    # which keeps its settings in the same place, and Eden's don't stop this from booting.
-    export XDG_CONFIG_HOME="$here/pokedinner-config"
-    "$pokedinner" -f -g "$main" "$@"
-    exit $?
+    # Delete PokeDinner to try Pokopia on the regular Eglantine instead.
+    if [ -n "$pokedinner" ]; then
+        chmod +x "$pokedinner"
+        # Its own settings, so they don't change EmuDeck's regular Eden, which keeps its settings in
+        # the same place, and Eden's don't stop this from booting.
+        export XDG_CONFIG_HOME="$here/pokedinner-config"
+        "$pokedinner" -f -g "$main" "$@"
+        exit $?
+    fi
     ;;
 *mario*kart*|*mkw*)
-    set -- --frames-ahead "$@" # 18 to 25 fps in a race; it freezes Donkey Kong Bananza, so only here
+    if [ -n "$regular" ]; then
+        export EDEN_NX2_NO_MESH=1 # AMD's driver crashes on its mesh shaders and takes the screen with it
+    else
+        set -- --frames-ahead "$@" # 18 to 25 fps in a race; it freezes Donkey Kong Bananza, so only here
+    fi
     ;;
 esac
-"$here/eglantine-deck.sh" "$main" "$@"
+if [ -n "$regular" ]; then
+    chmod +x "$regular"
+    export XDG_CONFIG_HOME="$here/eglantine-config"
+    "$regular" -f -g "$main" "$@"
+else
+    "$here/eglantine-deck.sh" "$main" "$@"
+fi
 LAUNCHER
-chmod +x "$app"/*.AppImage "$app/eglantine-deck.sh" "$app/eglantine-emudeck.sh"
+chmod +x "$app"/*.AppImage "$app/eglantine-emudeck.sh"
 
 # ---- the games folder
 say "Making the games folder"
 mkdir -p "$roms/switch2"
 cat > "$roms/switch2/systeminfo.txt" <<'INFO'
-Nintendo Switch 2, through Eglantine for Steam Deck (and PokeDinner for Pokopia).
+Nintendo Switch 2, through Eglantine (and PokeDinner for Pokopia).
 
 One folder per game, named after the game with .ns2 on the end, holding exefs and romfs. If your
 dump came as base and updates, it's the folder inside updates that holds both:
@@ -141,7 +199,7 @@ if ! grep -q '<name>switch2</name>' "$es_systems"; then
 	<fullname>Nintendo Switch 2</fullname>
 	<path>%ROMPATH%/switch2</path>
 	<extension>.ns2 .NS2</extension>
-	<command label="Eglantine (Steam Deck)">/bin/bash $app/eglantine-emudeck.sh %ROM%</command>
+	<command label="Eglantine">/bin/bash $app/eglantine-emudeck.sh %ROM%</command>
 	<platform>switch</platform>
 	<theme>switch2</theme>
   </system>
@@ -192,7 +250,7 @@ PARSER
 cat "$tmp/parsers.json" > "$srm_parsers"
 
 # ---- what the emulator's author says decides the most, so check it here
-say "Checking this Deck"
+say "Checking this machine"
 if [ "$(cat /sys/devices/system/cpu/smt/control 2>/dev/null)" = "off" ]; then
     echo "WARNING: SMT is off, which halves your frame rate. Turn it back on in the tool that turned it off (PowerTools, a Decky plugin)."
 else
@@ -200,7 +258,7 @@ else
 fi
 swap_mb="$(free -m | awk '/^Swap:/ { print $2 }')"
 if [ "${swap_mb:-0}" -lt 8000 ]; then
-    echo "WARNING: you have ${swap_mb:-0} MB of swap, and these games can freeze the whole Deck without more. CryoUtilities' Recommended settings make a 16 GB swap file: https://github.com/CryoByte33/steam-deck-utilities"
+    echo "WARNING: you have ${swap_mb:-0} MB of swap, and these games can freeze the whole machine without more. CryoUtilities' Recommended settings make a 16 GB swap file: https://github.com/CryoByte33/steam-deck-utilities"
 else
     echo "Swap is ${swap_mb} MB, good."
 fi
