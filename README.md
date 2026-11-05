@@ -1,4 +1,17 @@
-If you want to support my videos and care about less doomscrolling, check out [ControlMole](https://controlmole.app/) 😉
+<p align="center">
+  <a href="https://controlmole.app/"><img src="assets/controlmole_icon.png" width="120" alt="ControlMole app icon"></a>
+</p>
+<h2 align="center">ControlMole</h2>
+<p align="center">
+  <b>Your phone's new bodyguard.</b> Set a daily limit for TikTok, Instagram, YouTube and other apps, and when you go over, Mole closes them for the rest of the day. It's my own app against doomscrolling, and trying it is the best way to support these videos.
+</p>
+<p align="center">
+  <a href="https://controlmole.app/play"><img src="assets/google-play.png" height="48" alt="Get it on Google Play"></a>
+  &nbsp;
+  <a href="https://controlmole.app/appstore"><img src="assets/app-store.svg" height="48" alt="Download on the App Store"></a>
+</p>
+
+---
 
 # Switch 2 games in EmuDeck on a Steam Deck
 
